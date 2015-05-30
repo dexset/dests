@@ -277,6 +277,51 @@ void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)( in A a, lazy st
                     toStringForce(a) ) );
 }
 
+/++ throws `AssertError` if not except `E` or if except not `E`
+ +
+ + Params:
+ +
+ + fnc = delegate that must throw exception of type `E`
+ +/
+void assertExcept(E:Throwable=Exception, string file=__FILE__, size_t line=__LINE__)( void delegate() fnc )
+{
+    static if( __USE_ASSERT__ )
+    {
+        string result = "no exception";
+
+        try if( mustExcept!E( fnc ) ) result = "success";
+        catch( Throwable e ) result = format( "get unexpected '%s'", typeid(e).name );
+
+        enforce( "success" == result, newError( file, line,
+                    "assertExcept fails for delegate because %s", result ) );
+    }
+}
+
+///
+unittest
+{
+    static class TestExceptionA : Exception
+    { this() pure nothrow @safe { super(""); } }
+
+    static class TestExceptionB : Exception
+    { this() pure nothrow @safe { super(""); } }
+
+    string result = "no exception";
+
+    try assertExcept!TestExceptionA({ throw new TestExceptionA; });
+    catch( TestExceptionA ) result = "get test exception A";
+    catch( Throwable e ) result = "get throwable: '" ~ typeid(e).name ~ "'";
+
+    assertEq( "no exception", result );
+
+    try assertExcept!TestExceptionB({ throw new TestExceptionA; });
+    catch( TestExceptionA ) result = "get test exception A";
+    catch( TestExceptionB ) result = "get test exception B";
+    catch( AssertError ) result = "assert not pass";
+
+    assertEq( "assert not pass", result );
+}
+
 /+ not pure because using stderr and toStringForce isn't pure +/
 auto newError(Args...)( string file, size_t line, string fmt, Args args )
 {
