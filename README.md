@@ -1,6 +1,7 @@
 ## D Extended Set (DES) test suite
 
 [![Build Status](https://travis-ci.org/dexset/dests.svg?branch=master)](https://travis-ci.org/dexset/dests)
+[![Join the chat at https://gitter.im/dexset/discussion](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dexset/discussion)
 
 some aux funcs for unittesting
 
@@ -71,7 +72,7 @@ assertEq( [1.0f,2.0f], [1,2] );
 // throw AssertError with message 'assertNotEq fails: [1.0f, 2.0f] == [1, 2]'
 assertNotEq( [1.0f,2.0f], [1,2] );
 
-// throw AssertError with message 'fail compare: [1.0f, 2.0f] is not [1, 3]'
+// throw AssertError with message 'fail compare: [1.0, 2.0] is not [1, 3]'
 assertEq( [1.0f,2.0f], [1,3], "fail compare: %s is not %s" );
 
 // use 'is' for comparation with null
