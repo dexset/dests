@@ -7,25 +7,22 @@ some aux funcs for unittesting
 
 ```d
 /+ using epsilon of second argument (double.epsilon)
-   for compare int and double
-   abs( 1 - 1.0 ) < double.epsilon
+ + for compare int and double
+ + abs( 1 - 1.0 ) < double.epsilon
  +/
-assert(  eq( 1, 1.0 ) );
+assert( eq( 1, 1.0 ) );
 
 // ditto
-assert(  eq( [[1,2],[3,4]], [[1.0f,2],[3.0f,4]] ) );
+assert( eq( [[1,2],[3,4]], [[1.0f,2],[3.0f,4]] ) );
 
-// character by character comparation
-assert(  eq( "hello", "hello"w ) );
-
-// for void[] simple byte by byte comparation
-assert( !eq( cast(void[])"hello", cast(void[])"hello"w ) );
+// grapheme comparation
+assert( eq( "hello", "hello"w ) );
 
 // compile error: array of array can't be compared with int
 static assert( !__traits(compiles, eq(["hello"],1)) );
 
 /+ no compile error: char can be compared with int
-   but length of 'hello' not equals length of [1,2,3]
+ + but length of 'hello' not equals length of [1,2,3]
  +/
 assert( !eq( "hello", [1,2,3] ) );
 
