@@ -13,5 +13,3 @@ bin
 doc
 dub.selections.json
 __test__library__
-
-test/test
