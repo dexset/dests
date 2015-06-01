@@ -2,8 +2,7 @@
 [![Build Status](https://travis-ci.org/dexset/dests.svg?branch=master)](https://travis-ci.org/dexset/dests)
 [![Join the chat at https://gitter.im/dexset/discussion](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dexset/discussion)
 
-some aux funcs for unittesting
-
+some aux funcs for unittesting 
 #### `eq` func Example:
 
 ```d
@@ -79,10 +78,4 @@ assertNull( some_object );
 assertNotNull( some_object );
 ```
 
-Documentation orient to [harbored-mod](https://github.com/kiith-sa/harbored-mod)
-
-to build doc:
-```sh
-cd path/to/dests
-path/to/harbored-mod/bin/hmod
-```
+To build doc use [harbored-mod](https://github.com/kiith-sa/harbored-mod)
