@@ -1,5 +1,7 @@
 ## D Extended Set (DES) test suite
 
+[![Build Status](https://travis-ci.org/dexset/dests.svg?branch=master)](https://travis-ci.org/dexset/dests)
+
 some aux funcs for unittesting
 
 #### `eq` func Example:
