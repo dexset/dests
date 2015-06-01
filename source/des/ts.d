@@ -59,7 +59,17 @@ bool eq(A,B)( in A a, in B b ) pure
 
         return abs( a - b ) < epsilon;
     }
-    else return a == b;
+    else static if( is(typeof(a==b)) ) return a == b;
+    else static if( hasDataField!A && hasDataField!B ) return eq( a.data, b.data );
+    else static if( hasDataField!A && !hasDataField!B ) return eq( a.data, b );
+    else static if( !hasDataField!A && hasDataField!B ) return eq( a, b.data );
+    else static assert( 0, format( "uncompatible types '%s' and '%s'", nameOf!A, nameOf!B ) );
+}
+
+private template nameOf(T)
+{
+    static if( __traits(compiles,typeid(T).name) ) enum nameOf = typeid(T).name;
+    else enum nameOf = T.stringof;
 }
 
 ///
@@ -133,6 +143,11 @@ unittest
 private template isSomeObject(T)
 {
     enum isSomeObject = is( T == class ) || is( T == interface );
+}
+
+private template hasDataField(T)
+{
+    enum hasDataField = is( typeof( T.init.data ) );
 }
 
 /++ try call delegate
@@ -214,7 +229,6 @@ unittest
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
 void assertEq(A,B,string file=__FILE__,size_t line=__LINE__)( in A a, in B b, lazy string fmt=null )
-if( is( typeof( eq(a,b) ) ) )
 {
     static if( __USE_ASSERT__ )
         enforce( eq( a, b ), newError( file, line,
@@ -239,7 +253,6 @@ unittest
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
 void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)( in A a, in B b, lazy string fmt=null )
-if( is( typeof( eq(a,b) ) ) )
 {
     static if( __USE_ASSERT__ )
         enforce( !eq( a, b ), newError( file, line,
@@ -376,4 +389,35 @@ unittest
 
     assert( eq( to!string(new Object), "object.Object" ) );
     assert( !eq( toStringForce(new Object), "object.Object" ) );
+}
+
+unittest
+{
+    static struct fMtr { float[][] data; }
+    static struct dMtr { double[][] data; }
+
+    auto a = fMtr( [[1,2,3],[2,3,4]] );
+    assertEq( a, [[1,2,3],[2,3,4]] );
+    assertEq( [[1,2,3],[2,3,4]], a );
+    auto b = fMtr( [[1,2,3],[2,3,4]] );
+    assertEq( a, b );
+    auto c = dMtr( [[1,2,3],[2,3,4]] );
+    assertEq( a, c );
+}
+
+unittest
+{
+    static struct fVec { float[3] data; }
+    auto a = fVec([1,2,3]);
+    assertEq( a, [1,2,3] );
+    double[] b = [1,2,3];
+    assertEq( a, b );
+}
+
+unittest
+{
+    static assert( !__traits(compiles, eq( "hello", 123 ) ) );
+    static struct fVec { float[] data; }
+    auto a = fVec([32]);
+    static assert( !__traits(compiles, eq( a, 123 ) ) );
 }
