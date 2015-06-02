@@ -244,12 +244,12 @@ unittest
  + b = second value
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
-void assertEq(A,B,string file=__FILE__,size_t line=__LINE__)( in A a, in B b, lazy string fmt=null )
+void assertEq(A,B,string file=__FILE__,size_t line=__LINE__)
+             ( in A a, in B b, lazy string fmt="assertEq fails: %s != %s" )
 {
     static if( __USE_ASSERT__ )
-        enforce( eq( a, b ), newError( file, line,
-                    ( fmt.length > 0 ? fmt : "assertEq fails: %s != %s" ),
-                    toStringForce(a), toStringForce(b) ) );
+        enforce( eq( a, b ),
+                newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
 }
 
 ///
@@ -269,12 +269,12 @@ unittest
  + b = second value
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
-void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)( in A a, in B b, lazy string fmt=null )
+void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)
+                ( in A a, in B b, lazy string fmt="assertNotEq fails: %s == %s" )
 {
     static if( __USE_ASSERT__ )
-        enforce( !eq( a, b ), newError( file, line,
-                    ( fmt.length > 0 ? fmt : "assertNotEq fails: %s == %s" ),
-                    toStringForce(a), toStringForce(b) ) );
+        enforce( !eq( a, b ),
+                newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
 }
 
 /++ throws `AssertError` if `a !is null`
@@ -284,12 +284,11 @@ void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)( in A a, in B b,
  + a = value
  + fmt = error message format, must have one string place `'%s'` for `a`
  +/
-void assertNull(A,string file=__FILE__,size_t line=__LINE__)( in A a, lazy string fmt=null )
+void assertNull(A,string file=__FILE__,size_t line=__LINE__)
+               ( in A a, lazy string fmt="assertNull fails: %s !is null" )
 {
     static if( __USE_ASSERT__ )
-        enforce( a is null, newError( file, line,
-                    ( fmt.length > 0 ? fmt : "assertNull fails: %s !is null" ),
-                    toStringForce(a) ) );
+        enforce( a is null, newError( file, line, fmt, toStringForce(a) ) );
 }
 
 /++ throws `AssertError` if `a is null`
@@ -297,14 +296,13 @@ void assertNull(A,string file=__FILE__,size_t line=__LINE__)( in A a, lazy strin
  + Params:
  +
  + a = value
- + fmt = error message format, must have one string place `'%s'` for `a`
+ + fmt = error message (without format chars)
  +/
-void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)( in A a, lazy string fmt=null )
+void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)
+                  ( in A a, lazy string fmt="assertNotNull fails: value is null" )
 {
     static if( __USE_ASSERT__ )
-        enforce( a !is null, newError( file, line,
-                    ( fmt.length > 0 ? fmt : "assertNotNull fails: %s is null" ),
-                    toStringForce(a) ) );
+        enforce( a !is null, newError( file, line, fmt ) );
 }
 
 /++ throws `AssertError` if not except `E` or if except not `E`
@@ -350,6 +348,68 @@ unittest
     catch( AssertError ) result = "assert not pass";
 
     assertEq( "assert not pass", result );
+}
+
+/++ throws `AssertError` if `!eq_approx( a, b )`
+ +
+ + Params:
+ +
+ + a = first value
+ + b = second value
+ + eps = epsilon
+ + fmt = error message format, must have two string places `'%s'` for `a` and `b`
+ +/
+void assertEqApprox(A,B,E,string file=__FILE__,size_t line=__LINE__)
+                   ( in A a, in B b, in E eps, lazy string fmt="assertEqApprox fails: %s != %s" )
+{
+    static if( __USE_ASSERT__ )
+        enforce( eq_approx( a, b, eps ),
+                newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
+}
+
+///
+unittest
+{
+    assert(  mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.05 ); }) );
+    assert( !mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.5 ); }) );
+}
+
+/++ throws `AssertError` if tested value out of range
+ +
+ + for RANGETYPE allows values: `"[]"`, `"(]"`, `"[)"`, `"()"`
+ +
+ +/
+void assertInRange( string RANGETYPE="[)",MIN,V,MAX,string file=__FILE__,size_t line=__LINE__ )
+                  ( in MIN min_value, in V tested_value, in MAX max_value,
+                    lazy string fmt="assertInRange fails: %s is out of %s" )
+if( is(typeof(min_value<tested_value)) && is(typeof(tested_value<max_value)) )
+{
+    static if( __USE_ASSERT__ )
+    {
+        static if( !( RANGETYPE == "[]" || RANGETYPE == "()" ||
+                      RANGETYPE == "[)" || RANGETYPE == "(]" ) )
+            static assert( 0, format( "range type must be one of '[]'," ~
+                                    "'()', '(]', '[)', not '%s'", RANGETYPE ) );
+
+        enum op1 = RANGETYPE[0] == '[' ? "<=" : "<";
+        enum op2 = RANGETYPE[1] == ']' ? "<=" : "<";
+
+        mixin( format( q{
+            enforce( min_value %s tested_value && tested_value %s max_value,
+                    newError( file, line, fmt, toStringForce(tested_value),
+                        format( "%s%%s, %%s%s", min_value, max_value ) ) );
+            }, op1, op2, RANGETYPE[0], RANGETYPE[1] ) );
+    }
+}
+
+///
+unittest
+{
+    assertInRange( 0, 1, 2 );
+    assertInRange( 0, 0, 2 );
+    assertExcept!AssertError({ assertInRange( 0, 2, 2 ); });
+    assertInRange!"[]"( 0, 2, 2 );
+    assertInRange!"(]"( 0.0f, 2, 2.0 );
 }
 
 /+ not pure because using stderr and toStringForce isn't pure +/

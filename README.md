@@ -73,6 +73,20 @@ assertEq( [1.0f,2.0f], [1,3], "fail compare: %s is not %s" );
 // use 'is' for comparation with null
 assertNull( some_object );
 assertNotNull( some_object );
+
+// thowing exception assertion
+assertExcept!MyException({ throw new MyException; });
+
+// approx comparation assertion
+assert(  mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.05 ); }) );
+assert( !mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.5 ); }) );
+
+// numeric in range assertion
+assertInRange( 0, 1, 2 );
+assertInRange( 0, 0, 2 );
+assertExcept!AssertError({ assertInRange( 0, 2, 2 ); });
+assertInRange!"[]"( 0, 2, 2 );
+assertInRange!"(]"( 0.0f, 2, 2.0 );
 ```
 
 To build doc use [harbored-mod](https://github.com/kiith-sa/harbored-mod)
