@@ -37,24 +37,46 @@ private
     enum __USE_ASSERT__ = __UNITTEST__ || __DEBUG__ || __ALWAYS_ASSERT__;
 }
 
-private template isFiniteRandomAccessRange(T)
-{ enum isFiniteRandomAccessRange = isRandomAccessRange!T && hasLength!T; }
+// not in des.stdx.traits for break dependencies
+private template isElementArray(R)
+{
+    enum isElementArray = is(typeof(
+    (inout int = 0)
+    {
+        R r = R.init;
+        auto e = r[1];
+        static assert( hasLength!R );
+        static assert( !isNarrowString!R );
+    }));
+}
 
 unittest
 {
-    static assert(  isFiniteRandomAccessRange!(int[]) );
-    static assert(  isFiniteRandomAccessRange!(float[]) );
-    static assert( !isFiniteRandomAccessRange!(string) );
-    static assert( !isFiniteRandomAccessRange!(wstring) );
-    static assert( !isFiniteRandomAccessRange!int );
-    static assert( !isFiniteRandomAccessRange!float );
-    static assert( !isFiniteRandomAccessRange!(immutable(void)[]) );
+    static assert(  isElementArray!(int[]) );
+    static assert(  isElementArray!(int[3]) );
+    static assert(  isElementArray!(float[]) );
+
+    static struct Vec0
+    {
+        float[] data;
+        alias data this;
+    }
+    static assert(  isElementArray!Vec0 );
+
+    static struct Vec1 { float[] data; }
+    static assert( !isElementArray!Vec1 );
+
+    static assert( !isElementArray!(string) );
+    static assert( !isElementArray!(wstring) );
+    static assert( !isElementArray!int );
+    static assert( !isElementArray!float );
+    static assert( !isElementArray!(immutable(void)[]) );
 }
 
 /// check equals `a` and `b`
 bool eq(A,B)( in A a, in B b )
 {
-    static if( allSatisfy!(isFiniteRandomAccessRange,A,B) )
+    static if( allSatisfy!(isElementArray,A,B) )
     {
         if( a.length != b.length ) return false;
         foreach( i; 0 .. a.length )
@@ -80,9 +102,6 @@ bool eq(A,B)( in A a, in B b )
         return abs( a - b ) < epsilon;
     }
     else static if( is(typeof(a==b)) ) return a == b;
-    else static if( hasDataField!A && hasDataField!B )  return eq( a.data, b.data );
-    else static if( hasDataField!A && !hasDataField!B ) return eq( a.data, b );
-    else static if( !hasDataField!A && hasDataField!B ) return eq( a, b.data );
     else static assert( 0, format( "uncompatible types '%s' and '%s'", nameOf!A, nameOf!B ) );
 }
 
@@ -139,16 +158,17 @@ unittest
  + eps = numeric epsilon
  +/
 bool eq_approx(A,B,E)( in A a, in B b, in E eps ) pure
-    if( isNumeric!E && ( allSatisfy!(isNumeric,A,B) || allSatisfy!(isFiniteRandomAccessRange,A,B) ) )
+    if( isNumeric!E )
 {
-    static if( allSatisfy!(isFiniteRandomAccessRange,A,B) )
+    static if( allSatisfy!(isElementArray,A,B) )
     {
         if( a.length != b.length ) return false;
         foreach( i; 0 .. a.length )
             if( !eq_approx( a[i], b[i], eps ) ) return false;
         return true;
     }
-    else return abs( a - b ) < eps;
+    else static if( allSatisfy!(isNumeric,A,B) ) return abs( a - b ) < eps;
+    else static assert( 0, format( "uncompatible types '%s' and '%s'", nameOf!A, nameOf!B ) );
 }
 
 ///
@@ -162,9 +182,6 @@ unittest
 
 private template isSomeObject(T)
 { enum isSomeObject = is( T == class ) || is( T == interface ); }
-
-private template hasDataField(T)
-{ enum hasDataField = is( typeof( T.init.data ) ); }
 
 /++ try call delegate
  +
@@ -435,7 +452,7 @@ string toStringForce(Args...)( in Args args )
 
         static if( is( typeof( to!string( val ) )) )
             return to!string( val );
-        else static if( isFiniteRandomAccessRange!T )
+        else static if( isElementArray!T )
         {
             string[] rr;
             foreach( i; 0 .. val.length )
@@ -470,8 +487,8 @@ unittest
 
 unittest
 {
-    static struct fMtr { float[][] data; }
-    static struct dMtr { double[][] data; }
+    static struct fMtr { float[][] data; alias data this; }
+    static struct dMtr { double[][] data; alias data this; }
 
     auto a = fMtr( [[1,2,3],[2,3,4]] );
     assertEq( a, [[1,2,3],[2,3,4]] );
@@ -484,7 +501,21 @@ unittest
 
 unittest
 {
-    static struct fVec { float[3] data; }
+    static struct fMtr { float[][] data; alias data this; }
+    static struct dMtr { double[][] data; alias data this; }
+
+    auto a = fMtr( [[1,2,3],[2,3,4]] );
+    assertEqApprox( a, [[1,2,3],[2,3,4]], float.epsilon );
+    assertEqApprox( [[1,2,3],[2,3,4]], a, float.epsilon );
+    auto b = fMtr( [[1,2,3],[2,3,4]] );
+    assertEqApprox( a, b, float.epsilon );
+    auto c = dMtr( [[1,2,3],[2,3,4]] );
+    assertEqApprox( a, c, float.epsilon );
+}
+
+unittest
+{
+    static struct fVec { float[3] data; alias data this; }
     auto a = fVec([1,2,3]);
     assertEq( a, [1,2,3] );
     double[] b = [1,2,3];
@@ -494,7 +525,7 @@ unittest
 unittest
 {
     static assert( !__traits(compiles, eq( "hello", 123 ) ) );
-    static struct fVec { float[] data; }
+    static struct fVec { float[] data; alias data this; }
     auto a = fVec([32]);
     static assert( !__traits(compiles, eq( a, 123 ) ) );
 }
