@@ -443,14 +443,16 @@ auto newError(Args...)( string file, size_t line, string fmt, Args args )
 }
 
 /+ not pure because to!string isn't pure +/
-string toStringForce(Args...)( in Args args )
+private string toStringForce(Args...)( in Args args )
 {
     static if( Args.length == 1 )
     {
         alias T = Args[0];
         auto val = args[0];
 
-        static if( is( typeof( to!string( val ) )) )
+        static if( isSomeString!T )
+            return "'" ~ to!string(val) ~ "'";
+        else static if( is( typeof( to!string( val ) )) )
             return to!string( val );
         else static if( isElementArray!T )
         {
@@ -475,6 +477,8 @@ unittest
     assert( eq( toStringForce([0,4]), "[0, 4]" ) );
     assert( eq( toStringForce(null), "null" ) );
     assert( eq( toStringForce(0), "0" ) );
+
+    assert( eq( toStringForce("hello"), "'hello'" ) );
 
     Object a = null;
 
