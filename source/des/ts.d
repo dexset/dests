@@ -16,27 +16,6 @@ import std.conv : to;
 import std.format : FormatException;
 import core.exception : AssertError;
 
-private
-{
-    debug enum __DEBUG__ = true;
-    else  enum __DEBUG__ = false;
-
-    version(unittest) enum __UNITTEST__ = true;
-    else              enum __UNITTEST__ = false;
-
-    version( des_ts_always_assert )
-        enum __ALWAYS_ASSERT__ = true;
-    else
-    {
-        enum __ALWAYS_ASSERT__ = false;
-
-        static if( !__DEBUG__ && !__UNITTEST__ )
-            pragma(msg, "## Warning: des.ts not use asserts, use 'version=des_ts_always_assert'");
-    }
-
-    enum __USE_ASSERT__ = __UNITTEST__ || __DEBUG__ || __ALWAYS_ASSERT__;
-}
-
 // not in des.stdx.traits for break dependencies
 private template isElementArray(R)
 {
@@ -264,9 +243,8 @@ unittest
 void assertEq(A,B,string file=__FILE__,size_t line=__LINE__)
              ( in A a, in B b, lazy string fmt="assertEq fails: %s != %s" )
 {
-    static if( __USE_ASSERT__ )
-        enforce( eq( a, b ),
-                newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
+    enforce( eq( a, b ),
+            newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
 }
 
 ///
@@ -289,9 +267,8 @@ unittest
 void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)
                 ( in A a, in B b, lazy string fmt="assertNotEq fails: %s == %s" )
 {
-    static if( __USE_ASSERT__ )
-        enforce( !eq( a, b ),
-                newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
+    enforce( !eq( a, b ),
+            newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
 }
 
 /++ throws `AssertError` if `a !is null`
@@ -304,8 +281,7 @@ void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)
 void assertNull(A,string file=__FILE__,size_t line=__LINE__)
                ( in A a, lazy string fmt="assertNull fails: %s !is null" )
 {
-    static if( __USE_ASSERT__ )
-        enforce( a is null, newError( file, line, fmt, toStringForce(a) ) );
+    enforce( a is null, newError( file, line, fmt, toStringForce(a) ) );
 }
 
 /++ throws `AssertError` if `a is null`
@@ -318,8 +294,7 @@ void assertNull(A,string file=__FILE__,size_t line=__LINE__)
 void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)
                   ( in A a, lazy string fmt="assertNotNull fails: value is null" )
 {
-    static if( __USE_ASSERT__ )
-        enforce( a !is null, newError( file, line, fmt ) );
+    enforce( a !is null, newError( file, line, fmt ) );
 }
 
 /++ throws `AssertError` if not except `E` or if except not `E`
@@ -330,16 +305,13 @@ void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)
  +/
 void assertExcept(E:Throwable=Exception, string file=__FILE__, size_t line=__LINE__)( void delegate() fnc )
 {
-    static if( __USE_ASSERT__ )
-    {
-        string result = "no exception";
+    string result = "no exception";
 
-        try if( mustExcept!E( fnc ) ) result = "success";
-        catch( Throwable e ) result = format( "get unexpected '%s'", typeid(e).name );
+    try if( mustExcept!E( fnc ) ) result = "success";
+    catch( Throwable e ) result = format( "get unexpected '%s'", typeid(e).name );
 
-        enforce( "success" == result, newError( file, line,
-                    "assertExcept fails for delegate because %s", result ) );
-    }
+    enforce( "success" == result, newError( file, line,
+                "assertExcept fails for delegate because %s", result ) );
 }
 
 ///
@@ -379,9 +351,8 @@ unittest
 void assertEqApprox(A,B,E,string file=__FILE__,size_t line=__LINE__)
                    ( in A a, in B b, in E eps, lazy string fmt="assertEqApprox fails: %s != %s" )
 {
-    static if( __USE_ASSERT__ )
-        enforce( eq_approx( a, b, eps ),
-                newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
+    enforce( eq_approx( a, b, eps ),
+            newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
 }
 
 ///
@@ -401,22 +372,19 @@ void assertInRange( string RANGETYPE="[)",MIN,V,MAX,string file=__FILE__,size_t 
                     lazy string fmt="assertInRange fails: %s is out of %s" )
 if( is(typeof(min_value<tested_value)) && is(typeof(tested_value<max_value)) )
 {
-    static if( __USE_ASSERT__ )
-    {
-        static if( !( RANGETYPE == "[]" || RANGETYPE == "()" ||
-                      RANGETYPE == "[)" || RANGETYPE == "(]" ) )
-            static assert( 0, format( "range type must be one of '[]'," ~
-                                    "'()', '(]', '[)', not '%s'", RANGETYPE ) );
+    static if( !( RANGETYPE == "[]" || RANGETYPE == "()" ||
+                    RANGETYPE == "[)" || RANGETYPE == "(]" ) )
+        static assert( 0, format( "range type must be one of '[]'," ~
+                                "'()', '(]', '[)', not '%s'", RANGETYPE ) );
 
-        enum op1 = RANGETYPE[0] == '[' ? "<=" : "<";
-        enum op2 = RANGETYPE[1] == ']' ? "<=" : "<";
+    enum op1 = RANGETYPE[0] == '[' ? "<=" : "<";
+    enum op2 = RANGETYPE[1] == ']' ? "<=" : "<";
 
-        mixin( format( q{
-            enforce( min_value %s tested_value && tested_value %s max_value,
-                    newError( file, line, fmt, toStringForce(tested_value),
-                        format( "%s%%s, %%s%s", min_value, max_value ) ) );
-            }, op1, op2, RANGETYPE[0], RANGETYPE[1] ) );
-    }
+    mixin( format( q{
+        enforce( min_value %s tested_value && tested_value %s max_value,
+                newError( file, line, fmt, toStringForce(tested_value),
+                    format( "%s%%s, %%s%s", min_value, max_value ) ) );
+        }, op1, op2, RANGETYPE[0], RANGETYPE[1] ) );
 }
 
 ///
