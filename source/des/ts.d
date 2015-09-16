@@ -4,17 +4,16 @@
  +/
 module des.ts;
 
+public import std.exception;
+
 import std.traits;
 import std.typetuple;
 import std.math;
 import std.range;
 import std.uni;
 import std.string;
-import std.exception;
 import std.stdio : stderr;
 import std.conv : to;
-import std.format : FormatException;
-import core.exception : AssertError;
 
 // not in des.stdx.traits for break dependencies
 private template isElementArray(R)
@@ -232,7 +231,11 @@ unittest
     assert( test_b_catched );
 }
 
-/++ throws `AssertError` if `!eq( a, b )`
+import core.stdc.stdlib;
+enum ASSERT_FAIL = 1;
+void assertFail() { exit( ASSERT_FAIL ); }
+
+/++
  +
  + Params:
  +
@@ -240,20 +243,11 @@ unittest
  + b = second value
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
-void assertEq(A,B,string file=__FILE__,size_t line=__LINE__)
-             ( in A a, in B b, lazy string fmt="assertEq fails: %s != %s" )
+void assertEq(string file=__FILE__,size_t line=__LINE__,A,B)
+             ( in A a, in B b, string fmt="assertEq fails: %s != %s" )
 {
-    enforce( eq( a, b ),
-            newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
-}
-
-///
-unittest
-{
-    assertEq( [1,2,3], iota(1,4) );
-    assert(  mustExcept!AssertError({ assertEq( 1, 2 ); }) );
-    assert(  mustExcept!AssertError({ assertEq( [1,2], [2,3] ); }) );
-    assert( !mustExcept!AssertError({ assertEq( [1,2], [1,2] ); }) );
+    if( eq( a, b ) ) return;
+    error( file, line, fmt, toStringForce(a), toStringForce(b) );
 }
 
 /++ throws `AssertError` if `eq( a, b )`
@@ -267,8 +261,8 @@ unittest
 void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)
                 ( in A a, in B b, lazy string fmt="assertNotEq fails: %s == %s" )
 {
-    enforce( !eq( a, b ),
-            newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
+    if( !eq( a, b ) ) return;
+    error( file, line, fmt, toStringForce(a), toStringForce(b) );
 }
 
 /++ throws `AssertError` if `a !is null`
@@ -281,7 +275,8 @@ void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)
 void assertNull(A,string file=__FILE__,size_t line=__LINE__)
                ( in A a, lazy string fmt="assertNull fails: %s !is null" )
 {
-    enforce( a is null, newError( file, line, fmt, toStringForce(a) ) );
+    if( a is null ) return;
+    error( file, line, fmt, toStringForce(a) );
 }
 
 /++ throws `AssertError` if `a is null`
@@ -294,49 +289,8 @@ void assertNull(A,string file=__FILE__,size_t line=__LINE__)
 void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)
                   ( in A a, lazy string fmt="assertNotNull fails: value is null" )
 {
-    enforce( a !is null, newError( file, line, fmt ) );
-}
-
-/++ throws `AssertError` if not except `E` or if except not `E`
- +
- + Params:
- +
- + fnc = delegate that must throw exception of type `E`
- +/
-void assertExcept(E:Throwable=Exception, string file=__FILE__, size_t line=__LINE__)( void delegate() fnc )
-{
-    string result = "no exception";
-
-    try if( mustExcept!E( fnc ) ) result = "success";
-    catch( Throwable e ) result = format( "get unexpected '%s'", typeid(e).name );
-
-    enforce( "success" == result, newError( file, line,
-                "assertExcept fails for delegate because %s", result ) );
-}
-
-///
-unittest
-{
-    static class TestExceptionA : Exception
-    { this() pure nothrow @safe { super(""); } }
-
-    static class TestExceptionB : Exception
-    { this() pure nothrow @safe { super(""); } }
-
-    string result = "no exception";
-
-    try assertExcept!TestExceptionA({ throw new TestExceptionA; });
-    catch( TestExceptionA ) result = "get test exception A";
-    catch( Throwable e ) result = "get throwable: '" ~ typeid(e).name ~ "'";
-
-    assertEq( "no exception", result );
-
-    try assertExcept!TestExceptionB({ throw new TestExceptionA; });
-    catch( TestExceptionA ) result = "get test exception A";
-    catch( TestExceptionB ) result = "get test exception B";
-    catch( AssertError ) result = "assert not pass";
-
-    assertEq( "assert not pass", result );
+    if( a !is null ) return;
+    error( file, line, fmt );
 }
 
 /++ throws `AssertError` if `!eq_approx( a, b )`
@@ -351,15 +305,8 @@ unittest
 void assertEqApprox(A,B,E,string file=__FILE__,size_t line=__LINE__)
                    ( in A a, in B b, in E eps, lazy string fmt="assertEqApprox fails: %s != %s" )
 {
-    enforce( eq_approx( a, b, eps ),
-            newError( file, line, fmt, toStringForce(a), toStringForce(b) ) );
-}
-
-///
-unittest
-{
-    assert(  mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.05 ); }) );
-    assert( !mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.5 ); }) );
+    if( eq_approx( a, b, eps ) ) return;
+    error( file, line, fmt, toStringForce(a), toStringForce(b) );
 }
 
 /++ throws `AssertError` if tested value out of range
@@ -381,9 +328,8 @@ if( is(typeof(min_value<tested_value)) && is(typeof(tested_value<max_value)) )
     enum op2 = RANGETYPE[1] == ']' ? "<=" : "<";
 
     mixin( format( q{
-        enforce( min_value %s tested_value && tested_value %s max_value,
-                newError( file, line, fmt, toStringForce(tested_value),
-                    format( "%s%%s, %%s%s", min_value, max_value ) ) );
+        if( min_value %s tested_value && tested_value %s max_value ) return;
+        error( file, line, fmt, toStringForce(tested_value), format( "%s%%s, %%s%s", min_value, max_value ) );
         }, op1, op2, RANGETYPE[0], RANGETYPE[1] ) );
 }
 
@@ -392,13 +338,11 @@ unittest
 {
     assertInRange( 0, 1, 2 );
     assertInRange( 0, 0, 2 );
-    assertExcept!AssertError({ assertInRange( 0, 2, 2 ); });
     assertInRange!"[]"( 0, 2, 2 );
     assertInRange!"(]"( 0.0f, 2, 2.0 );
 }
 
-/+ not pure because using stderr and toStringForce isn't pure +/
-auto newError(Args...)( string file, size_t line, string fmt, Args args )
+void error(Args...)( string file, size_t line, string fmt, Args args )
 {
     string msg;
     try msg = format( fmt, args );
@@ -407,7 +351,8 @@ auto newError(Args...)( string file, size_t line, string fmt, Args args )
         stderr.writefln( "bad error format: '%s' (%s:%d)", fmt, file, line );
         msg = toStringForce( args );
     }
-    return new AssertError( msg, file, line );
+    stderr.writeln( format( "ERROR: %s:%d %s", file, line, msg ) );
+    assertFail();
 }
 
 /+ not pure because to!string isn't pure +/
