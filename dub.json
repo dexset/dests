@@ -1,7 +1,0 @@
-{
-	"name": "dests",
-    "description": "D Extended Set Test Suite: minimal",
-    "authors": [ "Oleg Butko (deviator)" ],
-    "license": "MIT",
-	"targetType": "sourceLibrary"
-}
