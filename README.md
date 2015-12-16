@@ -31,34 +31,6 @@ assert(  eq_approx( [1.1f,2,3], [1,2,3], 0.2 ) );
 assert( !eq_approx( [1.1f,2,3], [1,2,3], 0.1 ) );
 ```
 
-#### `mustExcept` func Example:
-
-```d
-static class TestExceptionA : Exception { this() @safe pure nothrow { super( "" ); } }
-static class TestExceptionB : Exception { this() @safe pure nothrow { super( "" ); } }
-static class TestExceptionC : TestExceptionA { this() @safe pure nothrow { super(); } }
-
-// TestExceptionA is an Exception
-assert(  mustExcept!Exception({ throw new TestExceptionA; }) );
-// TestExceptionB is an Exception
-assert(  mustExcept!Exception({ throw new TestExceptionB; }) );
-
-assert(  mustExcept!TestExceptionA({ throw new TestExceptionA; }) );
-// TestExceptionC is an TestExceptionA
-assert(  mustExcept!TestExceptionA({ throw new TestExceptionC; }) );
-assert(  mustExcept!TestExceptionB({ throw new TestExceptionB; }) );
-
-// TestExceptionA is not a TestExceptionB
-assert( !mustExcept!TestExceptionB( { throw new TestExceptionA; }, false ) );
-// TestExceptionB is not a TestExceptionA
-assert( !mustExcept!TestExceptionA( { throw new TestExceptionB; }, false ) );
-
-auto test_b_catched = false;
-try mustExcept!TestExceptionA({ throw new TestExceptionB; });
-catch( TestExceptionB ) test_b_catched = true; // unexpectable exception in delegate
-assert( test_b_catched );
-```
-
 #### `assert` funcs Example:
 ```d
 // use 'eq' func to compare values
@@ -76,10 +48,6 @@ assertNotNull( some_object );
 
 // thowing exception assertion
 assertExcept!MyException({ throw new MyException; });
-
-// approx comparation assertion
-assert(  mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.05 ); }) );
-assert( !mustExcept!AssertError({ assertEqApprox( [1.0f,3.0f], [1.1f,3.0f], 0.5 ); }) );
 
 // numeric in range assertion
 assertInRange( 0, 1, 2 );

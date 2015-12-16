@@ -7,7 +7,7 @@ module des.ts;
 public import std.exception;
 
 import std.traits;
-import std.typetuple;
+import std.meta;
 import std.math;
 import std.range;
 import std.uni;
@@ -15,44 +15,10 @@ import std.string;
 import std.stdio : stderr;
 import std.conv : to;
 
-// not in des.stdx.traits for break dependencies
-private template isElementArray(R)
-{
-    enum isElementArray = is(typeof(
-    (inout int = 0)
-    {
-        R r = R.init;
-        auto e = r[1];
-        static assert( hasLength!R );
-        static assert( !isNarrowString!R );
-    }));
-}
-
-unittest
-{
-    static assert(  isElementArray!(int[]) );
-    static assert(  isElementArray!(int[3]) );
-    static assert(  isElementArray!(float[]) );
-
-    static struct Vec0
-    {
-        float[] data;
-        alias data this;
-    }
-    static assert(  isElementArray!Vec0 );
-
-    static struct Vec1 { float[] data; }
-    static assert( !isElementArray!Vec1 );
-
-    static assert( !isElementArray!(string) );
-    static assert( !isElementArray!(wstring) );
-    static assert( !isElementArray!int );
-    static assert( !isElementArray!float );
-    static assert( !isElementArray!(immutable(void)[]) );
-}
+import core.exception : AssertError;
 
 /// check equals `a` and `b`
-bool eq(A,B)( in A a, in B b )
+bool eq(A,B)( A a, B b )
 {
     static if( allSatisfy!(isElementArray,A,B) )
     {
@@ -63,9 +29,9 @@ bool eq(A,B)( in A a, in B b )
     }
     else static if( allSatisfy!(isSomeString,A,B) )
     {
-        if( walkLength(a) != walkLength(b) ) return false;
-        foreach( g; zip( a.byGrapheme, b.byGrapheme ) )
-            if( g[0] != g[1] ) return false;
+        if( a.walkLength != b.walkLength ) return false;
+        foreach( x,y; lockstep( a.byGrapheme, b.byGrapheme ) )
+            if( x != y ) return false;
         return true;
     }
     else static if( isSomeObject!A && isSomeObject!B ) return a is b;
@@ -81,13 +47,6 @@ bool eq(A,B)( in A a, in B b )
     }
     else static if( is(typeof(a==b)) ) return a == b;
     else static assert( 0, format( "uncompatible types '%s' and '%s'", nameOf!A, nameOf!B ) );
-}
-
-private template nameOf(T)
-{
-    static if( __traits(compiles,typeid(T).name) )
-        enum nameOf = typeid(T).name;
-    else enum nameOf = T.stringof;
 }
 
 ///
@@ -135,7 +94,7 @@ unittest
  + b = second value
  + eps = numeric epsilon
  +/
-bool eq_approx(A,B,E)( in A a, in B b, in E eps ) pure
+bool eq_approx(A,B,E)( A a, B b, E eps )
     if( isNumeric!E )
 {
     static if( allSatisfy!(isElementArray,A,B) )
@@ -158,83 +117,6 @@ unittest
     static assert( !__traits(compiles, eq_approx( [[1,2]], [1,2] )) );
 }
 
-private template isSomeObject(T)
-{ enum isSomeObject = is( T == class ) || is( T == interface ); }
-
-/++ try call delegate
- +
- + Params:
- +
- + fnc = called delegate
- + throw_unexpected = if `true` when catch exception with type != `E` throw it out, if `false` ignore it
- +
- + Returns:
- + `true` if is catched exception of type `E`, `false` otherwise
- +/
-bool mustExcept(E:Throwable=Exception)( void delegate() fnc, bool throw_unexpected=true )
-in { assert( fnc !is null, "delegate is null" ); } body
-{
-    static if( !is( E == Throwable ) )
-    {
-        try fnc();
-        catch( E e ) return true;
-        catch( Throwable t )
-            if( throw_unexpected ) throw t;
-        return false;
-    }
-    else
-    {
-        try fnc();
-        catch( Throwable t ) return true;
-        return false;
-    }
-}
-
-///
-unittest
-{
-    assert(  mustExcept!Exception( { throw new Exception("test"); } ) );
-    assert( !mustExcept!Exception( { throw new Throwable("test"); }, false ) );
-    assert(  mustExcept( { throw new Exception("test"); } ) );
-    assert( !mustExcept( { throw new Throwable("test"); }, false ) );
-    assert(  mustExcept!Throwable( { throw new Exception("test"); } ) );
-    assert(  mustExcept!Throwable( { throw new Throwable("test"); } ) );
-    assert( !mustExcept!Exception({ auto a = 4; }) );
-}
-
-///
-unittest
-{
-    static class A {}
-    static assert( !__traits(compiles, mustExcept!A({})) );
-
-    static class TestExceptionA : Exception
-    { this() @safe pure nothrow { super( "" ); } }
-    static class TestExceptionB : Exception
-    { this() @safe pure nothrow { super( "" ); } }
-    static class TestExceptionC : TestExceptionA
-    { this() @safe pure nothrow { super(); } }
-
-    assert(  mustExcept!Exception({ throw new TestExceptionA; }) );
-    assert(  mustExcept!Exception({ throw new TestExceptionB; }) );
-
-    assert(  mustExcept!TestExceptionA({ throw new TestExceptionA; }) );
-    assert(  mustExcept!TestExceptionA({ throw new TestExceptionC; }) );
-    assert(  mustExcept!TestExceptionB({ throw new TestExceptionB; }) );
-
-    assert( !mustExcept!TestExceptionB( { throw new TestExceptionA; }, false ) );
-    assert( !mustExcept!TestExceptionA( { throw new TestExceptionB; }, false ) );
-
-    auto test_b_catched = false;
-    try mustExcept!TestExceptionA({ throw new TestExceptionB; });
-    catch( TestExceptionB ) test_b_catched = true;
-    assert( test_b_catched );
-}
-
-import core.stdc.stdlib;
-enum ASSERT_FAIL = 1;
-void assertFail() { exit( ASSERT_FAIL ); }
-
 /++
  +
  + Params:
@@ -243,8 +125,9 @@ void assertFail() { exit( ASSERT_FAIL ); }
  + b = second value
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
-void assertEq(string file=__FILE__,size_t line=__LINE__,A,B)
-             ( in A a, in B b, string fmt="assertEq fails: %s != %s" )
+void assertEq(A,B)( A a, B b,
+        string fmt="assertEq fails: %s != %s",
+        string file=__FILE__, size_t line=__LINE__ )
 {
     if( eq( a, b ) ) return;
     error( file, line, fmt, toStringForce(a), toStringForce(b) );
@@ -258,8 +141,9 @@ void assertEq(string file=__FILE__,size_t line=__LINE__,A,B)
  + b = second value
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
-void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)
-                ( in A a, in B b, lazy string fmt="assertNotEq fails: %s == %s" )
+void assertNotEq(A,B)( A a, B b,
+        lazy string fmt="assertNotEq fails: %s == %s",
+        string file=__FILE__, size_t line=__LINE__ )
 {
     if( !eq( a, b ) ) return;
     error( file, line, fmt, toStringForce(a), toStringForce(b) );
@@ -272,8 +156,9 @@ void assertNotEq(A,B,string file=__FILE__,size_t line=__LINE__)
  + a = value
  + fmt = error message format, must have one string place `'%s'` for `a`
  +/
-void assertNull(A,string file=__FILE__,size_t line=__LINE__)
-               ( in A a, lazy string fmt="assertNull fails: %s !is null" )
+void assertNull(A)( A a,
+        lazy string fmt="assertNull fails: %s !is null",
+        string file=__FILE__, size_t line=__LINE__ )
 {
     if( a is null ) return;
     error( file, line, fmt, toStringForce(a) );
@@ -286,8 +171,9 @@ void assertNull(A,string file=__FILE__,size_t line=__LINE__)
  + a = value
  + fmt = error message (without format chars)
  +/
-void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)
-                  ( in A a, lazy string fmt="assertNotNull fails: value is null" )
+void assertNotNull(A)( A a,
+        lazy string fmt="assertNotNull fails: value is null",
+        string file=__FILE__, size_t line=__LINE__ )
 {
     if( a !is null ) return;
     error( file, line, fmt );
@@ -302,8 +188,9 @@ void assertNotNull(A,string file=__FILE__,size_t line=__LINE__)
  + eps = epsilon
  + fmt = error message format, must have two string places `'%s'` for `a` and `b`
  +/
-void assertEqApprox(A,B,E,string file=__FILE__,size_t line=__LINE__)
-                   ( in A a, in B b, in E eps, lazy string fmt="assertEqApprox fails: %s != %s" )
+void assertEqApprox(A,B,E)( A a, B b, E eps,
+        lazy string fmt="assertEqApprox fails: %s != %s",
+        string file=__FILE__, size_t line=__LINE__ )
 {
     if( eq_approx( a, b, eps ) ) return;
     error( file, line, fmt, toStringForce(a), toStringForce(b) );
@@ -346,13 +233,8 @@ void error(Args...)( string file, size_t line, string fmt, Args args )
 {
     string msg;
     try msg = format( fmt, args );
-    catch( Exception )
-    {
-        stderr.writefln( "bad error format: '%s' (%s:%d)", fmt, file, line );
-        msg = toStringForce( args );
-    }
-    stderr.writeln( format( "ERROR: %s:%d %s", file, line, msg ) );
-    assertFail();
+    catch( Exception ) msg = "[FMTERR] " ~ toStringForce( args );
+    throw new AssertError( msg, file, line );
 }
 
 /+ not pure because to!string isn't pure +/
@@ -446,3 +328,51 @@ unittest
     auto a = fVec([32]);
     static assert( !__traits(compiles, eq( a, 123 ) ) );
 }
+
+private:
+
+template nameOf(T)
+{
+    static if( __traits(compiles,typeid(T).name) )
+        enum nameOf = typeid(T).name;
+    else enum nameOf = T.stringof;
+}
+
+// not in des.stdx.traits for break dependencies
+template isElementArray(R)
+{
+    enum isElementArray = is(typeof(
+    (inout int = 0)
+    {
+        R r = R.init;
+        auto e = r[0];
+        static assert( hasLength!R );
+        static assert( !isNarrowString!R );
+    }));
+}
+
+unittest
+{
+    static assert(  isElementArray!(int[]) );
+    static assert(  isElementArray!(int[3]) );
+    static assert(  isElementArray!(float[]) );
+
+    static struct Vec0
+    {
+        float[] data;
+        alias data this;
+    }
+    static assert(  isElementArray!Vec0 );
+
+    static struct Vec1 { float[] data; }
+    static assert( !isElementArray!Vec1 );
+
+    static assert( !isElementArray!(string) );
+    static assert( !isElementArray!(wstring) );
+    static assert( !isElementArray!int );
+    static assert( !isElementArray!float );
+    static assert( !isElementArray!(immutable(void)[]) );
+}
+
+template isSomeObject(T)
+{ enum isSomeObject = is( T == class ) || is( T == interface ); }
