@@ -35,7 +35,7 @@ bool eq(A,B)( A a, B b )
         return true;
     }
     else static if( isSomeObject!A && isSomeObject!B ) return a is b;
-    else static if( allSatisfy!(isNumeric,A,B) && anySatisfy!(isFloatingPoint,A,B) )
+    else static if( allSatisfy!(std.traits.isNumeric,A,B) && anySatisfy!(isFloatingPoint,A,B) )
     {
         static if( isFloatingPoint!A && isFloatingPoint!B )
             auto epsilon = fmax( A.epsilon, B.epsilon );
