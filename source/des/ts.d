@@ -20,6 +20,7 @@ import core.exception : AssertError;
 /// check equals `a` and `b`
 bool eq(A,B)( A a, B b )
 {
+    alias isNum = std.traits.isNumeric;
     static if( allSatisfy!(isElementArray,A,B) )
     {
         if( a.length != b.length ) return false;
@@ -35,7 +36,7 @@ bool eq(A,B)( A a, B b )
         return true;
     }
     else static if( isSomeObject!A && isSomeObject!B ) return a is b;
-    else static if( allSatisfy!(isNumeric,A,B) && anySatisfy!(isFloatingPoint,A,B) )
+    else static if( allSatisfy!(isNum,A,B) && anySatisfy!(isFloatingPoint,A,B) )
     {
         static if( isFloatingPoint!A && isFloatingPoint!B )
             auto epsilon = fmax( A.epsilon, B.epsilon );
